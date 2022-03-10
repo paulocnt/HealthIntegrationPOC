@@ -16,8 +16,8 @@ limitations under the License.
 -->
 <resources>
 
-    <string name="app_name">StepCounter</string>
-    <string name="intro_text">Hi! Let\'s track daily cumulative steps. Use the menu to explore additional actions.</string>
+    <string name="app_name">Google Fit POC</string>
+    <string name="intro_text"></string>
     <string name="action_settings">Settings</string>
     <string name="settings">Settings</string>
     <string name="ok">OK</string>
@@ -25,4 +25,7 @@ limitations under the License.
     <string name="permission_denied_explanation">Permission was denied, but is needed for core
         functionality.</string>
     <string name="read_step_data">Read step data</string>
+    <string name="read_step_weight">Read weight</string>
+    <string name="read_step_height">Read height</string>
+    <string name="read_step_bpm">Read bpm</string>
 </resources>

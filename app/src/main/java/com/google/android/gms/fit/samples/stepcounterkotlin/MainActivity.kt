@@ -37,7 +37,10 @@ import com.google.android.gms.fitness.Fitness
 import com.google.android.gms.fitness.FitnessOptions
 import com.google.android.gms.fitness.data.DataType
 import com.google.android.gms.fitness.data.Field
+import com.google.android.gms.fitness.request.DataReadRequest
 import com.google.android.material.snackbar.Snackbar
+import java.util.*
+import java.util.concurrent.TimeUnit
 
 const val TAG = "StepCounter"
 
@@ -48,7 +51,10 @@ const val TAG = "StepCounter"
  */
 enum class FitActionRequestCode {
     SUBSCRIBE,
-    READ_DATA
+    READ_DATA,
+    READ_WEIGHT,
+    READ_HEIGHT,
+    READ_BPM
 }
 // 8197351611-rtrua3rf2sthab27s44ngrg90nu6qh8a.apps.googleusercontent.com
 /**
@@ -58,12 +64,15 @@ enum class FitActionRequestCode {
  */
 class MainActivity : AppCompatActivity() {
     private val fitnessOptions = FitnessOptions.builder()
-            .addDataType(DataType.TYPE_STEP_COUNT_CUMULATIVE)
-            .addDataType(DataType.TYPE_STEP_COUNT_DELTA)
-            .build()
+        .addDataType(DataType.TYPE_STEP_COUNT_CUMULATIVE)
+        .addDataType(DataType.TYPE_STEP_COUNT_DELTA)
+        .addDataType(DataType.TYPE_WEIGHT)
+        .addDataType(DataType.TYPE_HEIGHT)
+        .addDataType(DataType.TYPE_HEART_RATE_BPM)
+        .build()
 
     private val runningQOrLater =
-            android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q
+        android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -95,9 +104,10 @@ class MainActivity : AppCompatActivity() {
         } else {
             requestCode.let {
                 GoogleSignIn.requestPermissions(
-                        this,
-                        requestCode.ordinal,
-                        getGoogleAccount(), fitnessOptions)
+                    this,
+                    requestCode.ordinal,
+                    getGoogleAccount(), fitnessOptions
+                )
             }
         }
     }
@@ -129,6 +139,9 @@ class MainActivity : AppCompatActivity() {
     private fun performActionForRequestCode(requestCode: FitActionRequestCode) = when (requestCode) {
         FitActionRequestCode.READ_DATA -> readData()
         FitActionRequestCode.SUBSCRIBE -> subscribe()
+        FitActionRequestCode.READ_WEIGHT -> readWeight()
+        FitActionRequestCode.READ_HEIGHT -> readHeight()
+        FitActionRequestCode.READ_BPM -> readBpm()
     }
 
     private fun oAuthErrorMsg(requestCode: Int, resultCode: Int) {
@@ -156,14 +169,14 @@ class MainActivity : AppCompatActivity() {
         // To create a subscription, invoke the Recording API. As soon as the subscription is
         // active, fitness data will start recording.
         Fitness.getRecordingClient(this, getGoogleAccount())
-                .subscribe(DataType.TYPE_STEP_COUNT_CUMULATIVE)
-                .addOnCompleteListener { task ->
-                    if (task.isSuccessful) {
-                        Log.i(TAG, "Successfully subscribed!")
-                    } else {
-                        Log.w(TAG, "There was a problem subscribing.", task.exception)
-                    }
+            .subscribe(DataType.TYPE_STEP_COUNT_CUMULATIVE)
+            .addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    Log.i(TAG, "Successfully subscribed!")
+                } else {
+                    Log.w(TAG, "There was a problem subscribing.", task.exception)
                 }
+            }
     }
 
     /**
@@ -172,17 +185,89 @@ class MainActivity : AppCompatActivity() {
      */
     private fun readData() {
         Fitness.getHistoryClient(this, getGoogleAccount())
-                .readDailyTotal(DataType.TYPE_STEP_COUNT_DELTA)
-                .addOnSuccessListener { dataSet ->
-                    val total = when {
-                        dataSet.isEmpty -> 0
-                        else -> dataSet.dataPoints.first().getValue(Field.FIELD_STEPS).asInt()
-                    }
-                    Log.i(TAG, "Total steps: $total")
+            .readDailyTotal(DataType.TYPE_STEP_COUNT_DELTA)
+            .addOnSuccessListener { dataSet ->
+                val total = when {
+                    dataSet.isEmpty -> 0
+                    else -> dataSet.dataPoints.first().getValue(Field.FIELD_STEPS).asInt()
                 }
-                .addOnFailureListener { e ->
-                    Log.w(TAG, "There was a problem getting the step count.", e)
+                Log.i(TAG, "Total steps: $total")
+            }
+            .addOnFailureListener { e ->
+                Log.w(TAG, "There was a problem getting the step count.", e)
+            }
+    }
+
+    private fun readWeight() {
+        val cal = Calendar.getInstance()
+        cal.time = Date()
+        cal.add(Calendar.YEAR, -10)
+
+        Fitness.getHistoryClient(this, getGoogleAccount())
+            .readData(
+                DataReadRequest.Builder().read(DataType.TYPE_WEIGHT).setTimeRange(
+                    cal.timeInMillis, Date().time, TimeUnit.MILLISECONDS
+                ).build()
+            )
+            .addOnSuccessListener { dataResponse ->
+                val dataSet = dataResponse.dataSets
+                val total = when {
+                    dataSet.isEmpty() -> 0f
+                    else -> dataSet.first().dataPoints.first().getValue(Field.FIELD_WEIGHT).asFloat()
                 }
+                Log.i(TAG, "Weight in kg: $total")
+            }
+            .addOnFailureListener { e ->
+                Log.w(TAG, "There was a problem getting the weight.", e)
+            }
+    }
+
+    private fun readHeight() {
+        val cal = Calendar.getInstance()
+        cal.time = Date()
+        cal.add(Calendar.YEAR, -10)
+
+        Fitness.getHistoryClient(this, getGoogleAccount())
+            .readData(
+                DataReadRequest.Builder().read(DataType.TYPE_HEIGHT).setTimeRange(
+                    cal.timeInMillis, Date().time, TimeUnit.MILLISECONDS
+                ).build()
+            )
+            .addOnSuccessListener { dataResponse ->
+                val dataSet = dataResponse.dataSets
+                val total = when {
+                    dataSet.isEmpty() -> 0f
+                    else -> dataSet.first().dataPoints.first().getValue(Field.FIELD_HEIGHT).asFloat() * 100f
+                }
+                Log.i(TAG, "Weight in cm: $total")
+            }
+            .addOnFailureListener { e ->
+                Log.w(TAG, "There was a problem getting the height.", e)
+            }
+    }
+
+    private fun readBpm() {
+        val cal = Calendar.getInstance()
+        cal.time = Date()
+        cal.add(Calendar.YEAR, -10)
+
+        Fitness.getHistoryClient(this, getGoogleAccount())
+            .readData(
+                DataReadRequest.Builder().read(DataType.TYPE_HEART_RATE_BPM).setTimeRange(
+                    cal.timeInMillis, Date().time, TimeUnit.MILLISECONDS
+                ).build()
+            )
+            .addOnSuccessListener { dataResponse ->
+                val dataSet = dataResponse.dataSets
+                val total = when {
+                    dataSet.isEmpty() -> 0f
+                    else -> dataSet.first().dataPoints.first().getValue(Field.FIELD_BPM).asFloat()
+                }
+                Log.i(TAG, "Beats per minute: $total")
+            }
+            .addOnFailureListener { e ->
+                Log.w(TAG, "There was a problem getting BPM.", e)
+            }
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -193,11 +278,25 @@ class MainActivity : AppCompatActivity() {
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         val id = item.itemId
-        if (id == R.id.action_read_data) {
-            fitSignIn(FitActionRequestCode.READ_DATA)
-            return true
+        when (id) {
+            R.id.action_read_data -> {
+                fitSignIn(FitActionRequestCode.READ_DATA)
+                return true
+            }
+            R.id.action_read_weight -> {
+                fitSignIn(FitActionRequestCode.READ_WEIGHT)
+                return true
+            }
+            R.id.action_read_height -> {
+                fitSignIn(FitActionRequestCode.READ_HEIGHT)
+                return true
+            }
+            R.id.action_read_bpm -> {
+                fitSignIn(FitActionRequestCode.READ_BPM)
+                return true
+            }
+            else -> return super.onOptionsItemSelected(item)
         }
-        return super.onOptionsItemSelected(item)
     }
 
     /** Initializes a custom log class that outputs both to in-app targets and logcat.  */
@@ -220,8 +319,9 @@ class MainActivity : AppCompatActivity() {
     private fun permissionApproved(): Boolean {
         val approved = if (runningQOrLater) {
             PackageManager.PERMISSION_GRANTED == ActivityCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.ACTIVITY_RECOGNITION)
+                this,
+                Manifest.permission.ACTIVITY_RECOGNITION
+            )
         } else {
             true
         }
@@ -230,7 +330,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun requestRuntimePermissions(requestCode: FitActionRequestCode) {
         val shouldProvideRationale =
-                ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.ACTIVITY_RECOGNITION)
+            ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.ACTIVITY_RECOGNITION)
 
         // Provide an additional rationale to the user. This would happen if the user denied the
         // request previously, but didn't check the "Don't ask again" checkbox.
@@ -238,30 +338,38 @@ class MainActivity : AppCompatActivity() {
             if (shouldProvideRationale) {
                 Log.i(TAG, "Displaying permission rationale to provide additional context.")
                 Snackbar.make(
-                        findViewById(R.id.main_activity_view),
-                        R.string.permission_rationale,
-                        Snackbar.LENGTH_INDEFINITE)
-                        .setAction(R.string.ok) {
-                            // Request permission
-                            ActivityCompat.requestPermissions(this,
-                                    arrayOf(Manifest.permission.ACTIVITY_RECOGNITION),
-                                    requestCode.ordinal)
-                        }
-                        .show()
+                    findViewById(R.id.main_activity_view),
+                    R.string.permission_rationale,
+                    Snackbar.LENGTH_INDEFINITE
+                )
+                    .setAction(R.string.ok) {
+                        // Request permission
+                        ActivityCompat.requestPermissions(
+                            this,
+                            arrayOf(Manifest.permission.ACTIVITY_RECOGNITION),
+                            requestCode.ordinal
+                        )
+                    }
+                    .show()
             } else {
                 Log.i(TAG, "Requesting permission")
                 // Request permission. It's possible this can be auto answered if device policy
                 // sets the permission in a given state or the user denied the permission
                 // previously and checked "Never ask again".
-                ActivityCompat.requestPermissions(this,
-                        arrayOf(Manifest.permission.ACTIVITY_RECOGNITION),
-                        requestCode.ordinal)
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(Manifest.permission.ACTIVITY_RECOGNITION),
+                    requestCode.ordinal
+                )
             }
         }
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>,
-                                            grantResults: IntArray) {
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<String>,
+        grantResults: IntArray
+    ) {
         when {
             grantResults.isEmpty() -> {
                 // If user interaction was interrupted, the permission request
@@ -290,20 +398,23 @@ class MainActivity : AppCompatActivity() {
                 // touches or interactions which have required permissions.
 
                 Snackbar.make(
-                        findViewById(R.id.main_activity_view),
-                        R.string.permission_denied_explanation,
-                        Snackbar.LENGTH_INDEFINITE)
-                        .setAction(R.string.settings) {
-                            // Build intent that displays the App settings screen.
-                            val intent = Intent()
-                            intent.action = Settings.ACTION_APPLICATION_DETAILS_SETTINGS
-                            val uri = Uri.fromParts("package",
-                                    BuildConfig.APPLICATION_ID, null)
-                            intent.data = uri
-                            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                            startActivity(intent)
-                        }
-                        .show()
+                    findViewById(R.id.main_activity_view),
+                    R.string.permission_denied_explanation,
+                    Snackbar.LENGTH_INDEFINITE
+                )
+                    .setAction(R.string.settings) {
+                        // Build intent that displays the App settings screen.
+                        val intent = Intent()
+                        intent.action = Settings.ACTION_APPLICATION_DETAILS_SETTINGS
+                        val uri = Uri.fromParts(
+                            "package",
+                            BuildConfig.APPLICATION_ID, null
+                        )
+                        intent.data = uri
+                        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        startActivity(intent)
+                    }
+                    .show()
             }
         }
     }
